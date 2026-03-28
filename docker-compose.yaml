@@ -42,6 +42,28 @@ services:
     depends_on:
       - front-end
       - otel
+      - log-stream
+    environment:
+      - LOG_STREAM_URL=http://log-stream:8080/v1/logs
+
+  log-stream:
+    build: ./log-stream
+    ports:
+      - "8090:8080"
+
+  drain3:
+    build: ./drain3
+    depends_on:
+      - log-stream
+      - otel
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # SLM: Ollama on host — run `ollama pull llama3.2` (or set SLM_MODEL to a tag you have).
+    environment:
+      - LOG_STREAM_URL=http://log-stream:8080/v1/stream
+      - TEMPO_URL=http://otel:3200
+      - SLM_URL=http://host.docker.internal:11434/api/generate
+      - SLM_MODEL=llama3.2
 
   # ---------------- LGTM STACK ----------------
   otel:

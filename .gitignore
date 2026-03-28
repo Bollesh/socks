@@ -1,6 +1,12 @@
-cat > .gitignore << 'EOF'
 __pycache__/
 *.pyc
 .env
-EOF
 exports/
+
+offline_lstm/.venv/
+offline_lstm/data/*.csv
+offline_lstm/data/*.npz
+offline_lstm/data/*.json
+!offline_lstm/data/.gitkeep
+offline_lstm/plots/
+offline_lstm/checkpoints/

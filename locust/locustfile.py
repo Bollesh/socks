@@ -7,6 +7,7 @@ Telemetry:
 """
 import json
 import logging
+import os
 import threading
 import time
 import uuid
@@ -32,6 +33,7 @@ from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExp
 # ── Config ────────────────────────────────────────────────────────────────────
 OTEL_ENDPOINT = "http://otel:4318"
 LOKI_ENDPOINT = "http://otel:3100/loki/api/v1/push"
+LOG_STREAM_URL = os.environ.get("LOG_STREAM_URL", "").strip()
 RESOURCE = Resource({"service.name": "locust"})
 
 # ── Trace provider ────────────────────────────────────────────────────────────
@@ -84,6 +86,35 @@ _log_buffer = []
 _log_lock = threading.Lock()
 
 
+def _trace_id_hex() -> str:
+    try:
+        span = trace.get_current_span()
+        ctx = span.get_span_context()
+        if ctx.is_valid:
+            return format(ctx.trace_id, "032x")
+    except Exception:
+        pass
+    return ""
+
+
+def _push_log_stream(message: str, level: str, labels: dict | None = None):
+    if not LOG_STREAM_URL:
+        return
+    lab = {k: str(v) for k, v in (labels or {}).items()}
+    body: dict = {"message": message, "level": level, "labels": lab}
+    tid = lab.get("trace_id")
+    if tid:
+        body["trace_id"] = tid
+
+    def _post():
+        try:
+            req_lib.post(LOG_STREAM_URL, json=body, timeout=2)
+        except Exception:
+            pass
+
+    threading.Thread(target=_post, daemon=True).start()
+
+
 def _push_to_loki(level: str, message: str, labels: dict = None):
     ns = str(time.time_ns())
     stream = {"service_name": "locust", "level": level}
@@ -122,6 +153,13 @@ class LokiLogger:
 logger = LokiLogger()
 logging.basicConfig(level=logging.INFO)
 console = logging.getLogger("locust.sockshop")
+if LOG_STREAM_URL:
+    console.info("Streaming request logs to %s (for log-stream / drain3)", LOG_STREAM_URL)
+else:
+    console.warning(
+        "LOG_STREAM_URL is unset — log-stream will get no Locust HTTP events "
+        "(expected in Docker: LOG_STREAM_URL=http://log-stream:8080/v1/logs)."
+    )
 
 # ── Known catalogue item IDs ──────────────────────────────────────────────────
 CATALOGUE_IDS = [
@@ -141,12 +179,20 @@ CATALOGUE_IDS = [
 def on_request(request_type, name, response_time, response_length, response,
                context, exception, **kwargs):
     labels = {"url": name, "method": request_type}
+    tid = _trace_id_hex()
+    if tid:
+        labels["trace_id"] = tid
 
     if exception:
         labels["status"] = "error"
         console.error("FAIL %s %s — %s", request_type, name, exception)
         logger.error(f"Request failed | {request_type} {name}",
                      method=request_type, url=name, error=str(exception))
+        _push_log_stream(
+            f"Request failed | {request_type} {name} — {exception}",
+            "error",
+            labels,
+        )
         request_counter.add(1, {**labels})
         error_counter.add(1, {**labels})
         duration_histogram.record(response_time, {**labels})
@@ -155,11 +201,22 @@ def on_request(request_type, name, response_time, response_length, response,
         labels["status"] = str(status)
         level = "warning" if status >= 400 else "info"
         console.info("%s %s %s %.0fms", request_type, name, status, response_time)
+        payload_labels = dict(
+            method=request_type,
+            url=name,
+            status=str(status),
+            duration_ms=str(round(response_time, 2)),
+        )
+        if tid:
+            payload_labels["trace_id"] = tid
         _push_to_loki(level,
                       f"Request completed | {request_type} {name} {status}",
-                      dict(method=request_type, url=name,
-                           status=str(status),
-                           duration_ms=str(round(response_time, 2))))
+                      payload_labels)
+        _push_log_stream(
+            f"Request completed | {request_type} {name} {status}",
+            level,
+            payload_labels,
+        )
         request_counter.add(1, {**labels})
         duration_histogram.record(response_time, {**labels})
         if status >= 400:
