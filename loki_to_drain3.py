@@ -19,7 +19,8 @@ from drain3.template_miner_config import TemplateMinerConfig
 
 LOKI_URL       = "http://localhost:3100"
 POLL_INTERVAL  = 2   # seconds
-
+TEMPO_URL             = "http://localhost:3200"
+ANOMALY_DURATION_MS   = 1000   # traces slower than this are flagged as real
 # All your services in one regex query
 # =~ means "regex match" in LogQL
 # The | between names means OR
@@ -102,8 +103,7 @@ def poll_loki(client, start_ns, end_ns):
 #   "cluster_created"          → never seen this pattern before → NOVEL
 #   "cluster_template_changed" → pattern evolved significantly  → NOVEL
 #   "none"                     → seen this before               → ROUTINE
-
-def process_line(service, line):
+def process_line(service, line, client, timestamp_ns):
     miner = miners.get(service)
     if not miner:
         return
@@ -128,7 +128,77 @@ def process_line(service, line):
     print(f"        change={change}")
     print(f"        raw line : {line}")
     print(f"        template : {template}")
+
+    # Validate against Tempo before flagging as real anomaly
+    validation = validate_with_tempo(client, timestamp_ns)
+    if validation["valid"]:
+        print(f"        ✓ CONFIRMED by Tempo: {validation['reason']}")
+        print(f"        → Send to remediation")
+    else:
+        print(f"        ✗ SUPPRESSED: {validation['reason']}")
     print()
+def validate_with_tempo(client, timestamp_ns: str) -> dict:
+    """
+    When Drain3 flags a novel pattern at timestamp T,
+    query Tempo for traces within a 3-second window around T.
+    
+    Returns:
+        {"valid": True,  "reason": "found slow trace 1240ms"}  → real anomaly
+        {"valid": False, "reason": "all traces normal"}        → suppress it
+    """
+    # Convert nanoseconds to seconds for Tempo
+    ts_seconds = int(timestamp_ns) / 1e9
+    start_s = int(ts_seconds - 3)    # Tempo wants plain seconds
+    end_s   = int(ts_seconds + 3)
+
+    try:
+        response = client.get(
+            f"{TEMPO_URL}/api/search",
+            params={
+                "service.name": "locust",
+                "start":        start_s,
+                "end":          end_s,
+                "limit":        20,
+            },
+            timeout=5.0,
+        )
+        response.raise_for_status()
+        traces = response.json().get("traces", [])
+    except Exception as e:
+        # If Tempo is unreachable, let the anomaly through
+        return {"valid": True, "reason": f"Tempo unavailable: {e}"}
+
+    if not traces:
+        return {"valid": False, "reason": "no traces found in window"}
+
+    for t in traces:
+        duration_ms = t.get("durationMs", 0)
+        root_error  = t.get("rootServiceName", "")
+        
+        # Check for slow traces
+        if duration_ms > ANOMALY_DURATION_MS:
+            return {
+                "valid":    True,
+                "reason":   f"slow trace found: {duration_ms}ms",
+                "trace_id": t.get("traceID", ""),
+            }
+        
+        # Check for error traces
+        span_set = t.get("spanSet", {})
+        spans    = span_set.get("spans", []) if span_set else []
+        for span in spans:
+            attrs = span.get("attributes", [])
+            for attr in attrs:
+                if attr.get("key") == "http.status_code":
+                    val = attr.get("value", {}).get("intValue", 0)
+                    if int(val) >= 500:
+                        return {
+                            "valid":    True,
+                            "reason":   f"error span found: HTTP {val}",
+                            "trace_id": t.get("traceID", ""),
+                        }
+
+    return {"valid": False, "reason": "all traces normal in window"}
 # ─────────────────────────────────────────────────────────────────────────────
 # MAIN LOOP
 # ─────────────────────────────────────────────────────────────────────────────
@@ -160,7 +230,7 @@ def main():
 
                 # Step 2: feed each line into its service's Drain3
                 for entry in entries:
-                    process_line(entry["service"], entry["line"])
+                    process_line(entry["service"], entry["line"], client, entry["timestamp_ns"])
             else:
                 print("[POLL] No new logs")
                 last_ts = now_ns
