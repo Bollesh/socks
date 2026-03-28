@@ -65,7 +65,7 @@ services:
       - LOKI_URL=http://otel:3100
       - PROM_URL=http://otel:9090
       - SLM_URL=http://host.docker.internal:11434/api/generate
-      - SLM_MODEL=llama3.2
+      - SLM_MODEL=llama3.2:3b
       # Log LSTM (unchanged)
       - DRAIN3_WINDOW=24
       - DRAIN3_FEAT_DIM=8

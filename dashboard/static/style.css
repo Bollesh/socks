@@ -377,6 +377,7 @@ h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; }
   position: relative;
   overflow: hidden;
   backdrop-filter: blur(8px);
+  flex-shrink: 0;
 }
 .anomaly-card::before {
   content: '';
