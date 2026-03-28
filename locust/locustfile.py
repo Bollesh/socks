@@ -1,7 +1,9 @@
 """
 Sock Shop - Complex Load Test
-Covers: catalogue, carts, orders, user, payment, shipping, queue-master
-User flows: browse → register/login → add to cart → checkout → view orders
+Telemetry:
+  - Traces  → Tempo   (via OTLP)
+  - Logs    → Loki    (via native push API)
+  - Metrics → Prometheus (via OTLP → otel-lgtm collector)
 """
 import json
 import logging
@@ -13,6 +15,7 @@ import random
 import requests as req_lib
 from locust import HttpUser, task, between, events, tag
 
+# ── OpenTelemetry: Traces ─────────────────────────────────────────────────────
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.resources import Resource
@@ -20,17 +23,61 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 
-# ── OTel setup ───────────────────────────────────────────────────────────────
+# ── OpenTelemetry: Metrics ────────────────────────────────────────────────────
+from opentelemetry import metrics
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+
+# ── Config ────────────────────────────────────────────────────────────────────
 OTEL_ENDPOINT = "http://otel:4318"
 LOKI_ENDPOINT = "http://otel:3100/loki/api/v1/push"
 RESOURCE = Resource({"service.name": "locust"})
 
+# ── Trace provider ────────────────────────────────────────────────────────────
 trace_provider = TracerProvider(resource=RESOURCE)
 trace_provider.add_span_processor(
     BatchSpanProcessor(OTLPSpanExporter(endpoint=f"{OTEL_ENDPOINT}/v1/traces"))
 )
 trace.set_tracer_provider(trace_provider)
 RequestsInstrumentor().instrument()
+
+# ── Metric provider ───────────────────────────────────────────────────────────
+metric_reader = PeriodicExportingMetricReader(
+    OTLPMetricExporter(endpoint=f"{OTEL_ENDPOINT}/v1/metrics"),
+    export_interval_millis=5000,
+)
+meter_provider = MeterProvider(resource=RESOURCE, metric_readers=[metric_reader])
+metrics.set_meter_provider(meter_provider)
+
+meter = metrics.get_meter("locust.sockshop")
+
+# Metric instruments
+request_counter = meter.create_counter(
+    "http_requests_total",
+    description="Total HTTP requests made by locust",
+)
+error_counter = meter.create_counter(
+    "http_errors_total",
+    description="Total HTTP errors (status >= 400 or exception)",
+)
+duration_histogram = meter.create_histogram(
+    "http_request_duration_ms",
+    description="HTTP request duration in milliseconds",
+    unit="ms",
+)
+active_users_gauge = meter.create_up_down_counter(
+    "locust_active_users",
+    description="Number of active simulated users",
+)
+orders_counter = meter.create_counter(
+    "orders_placed_total",
+    description="Total orders successfully placed",
+)
+cart_operations_counter = meter.create_counter(
+    "cart_operations_total",
+    description="Total cart operations (add/remove/update)",
+)
 
 # ── Loki logger ───────────────────────────────────────────────────────────────
 _log_buffer = []
@@ -66,17 +113,17 @@ def _flush_loki():
 
 
 class LokiLogger:
-    def debug(self, msg, **kw): _push_to_loki("debug", msg, kw)
-    def info(self, msg, **kw):  _push_to_loki("info",  msg, kw)
+    def debug(self, msg, **kw):   _push_to_loki("debug",   msg, kw)
+    def info(self, msg, **kw):    _push_to_loki("info",    msg, kw)
     def warning(self, msg, **kw): _push_to_loki("warning", msg, kw)
-    def error(self, msg, **kw): _push_to_loki("error", msg, kw)
+    def error(self, msg, **kw):   _push_to_loki("error",   msg, kw)
 
 
 logger = LokiLogger()
 logging.basicConfig(level=logging.INFO)
 console = logging.getLogger("locust.sockshop")
 
-# ── Known catalogue IDs (fetched at startup if possible) ──────────────────────
+# ── Known catalogue item IDs ──────────────────────────────────────────────────
 CATALOGUE_IDS = [
     "03fef6ac-1896-4ce8-bd69-b798f85c6e0b",
     "3395a43e-2d88-40de-b95f-e00e1502085b",
@@ -93,18 +140,43 @@ CATALOGUE_IDS = [
 @events.request.add_listener
 def on_request(request_type, name, response_time, response_length, response,
                context, exception, **kwargs):
+    labels = {"url": name, "method": request_type}
+
     if exception:
+        labels["status"] = "error"
         console.error("FAIL %s %s — %s", request_type, name, exception)
         logger.error(f"Request failed | {request_type} {name}",
                      method=request_type, url=name, error=str(exception))
+        request_counter.add(1, {**labels})
+        error_counter.add(1, {**labels})
+        duration_histogram.record(response_time, {**labels})
     else:
         status = response.status_code
+        labels["status"] = str(status)
         level = "warning" if status >= 400 else "info"
         console.info("%s %s %s %.0fms", request_type, name, status, response_time)
         _push_to_loki(level,
                       f"Request completed | {request_type} {name} {status}",
                       dict(method=request_type, url=name,
-                           status=str(status), duration_ms=str(round(response_time, 2))))
+                           status=str(status),
+                           duration_ms=str(round(response_time, 2))))
+        request_counter.add(1, {**labels})
+        duration_histogram.record(response_time, {**labels})
+        if status >= 400:
+            error_counter.add(1, {**labels})
+
+
+@events.spawning_complete.add_listener
+def on_spawning_complete(user_count, **kwargs):
+    active_users_gauge.add(user_count)
+    logger.info("Spawning complete", user_count=user_count)
+
+
+@events.quitting.add_listener
+def on_quitting(**kwargs):
+    logger.info("Locust quitting, flushing telemetry")
+    trace_provider.force_flush()
+    meter_provider.force_flush()
 
 
 # ── User behaviour ────────────────────────────────────────────────────────────
@@ -112,22 +184,25 @@ class SockShopUser(HttpUser):
     """
     Simulates a realistic shopping journey:
       1. Browse catalogue (anonymous)
-      2. Register or login
+      2. Register + login
       3. Add items to cart, update quantities, remove items
       4. View & update address / card on profile
       5. Place order → triggers payment + shipping + queue-master
       6. Review order history
-      7. Logout
+      7. Session ends
     """
     wait_time = between(1, 4)
 
     def on_start(self):
-        """Called once per simulated user. Register and log in."""
         self.user_id = None
-        self.session_cookie = None
+        active_users_gauge.add(1)
         self._register_and_login()
 
-    # ── Catalogue (hits catalogue service) ───────────────────────────────────
+    def on_stop(self):
+        active_users_gauge.add(-1)
+        logger.info("User session ending")
+
+    # ── Catalogue ─────────────────────────────────────────────────────────────
 
     @tag("catalogue")
     @task(5)
@@ -160,7 +235,7 @@ class SockShopUser(HttpUser):
     def get_catalogue_size(self):
         self.client.get("/catalogue/size", name="/catalogue/size")
 
-    # ── Cart (hits carts service) ─────────────────────────────────────────────
+    # ── Cart ──────────────────────────────────────────────────────────────────
 
     @tag("cart")
     @task(4)
@@ -173,8 +248,10 @@ class SockShopUser(HttpUser):
             name="/cart [add]",
             catch_response=True,
         ) as resp:
+            cart_operations_counter.add(1, {"operation": "add"})
             if resp.status_code not in (200, 201):
-                logger.warning("Add to cart failed", item_id=item_id, status=resp.status_code)
+                logger.warning("Add to cart failed",
+                               item_id=item_id, status=resp.status_code)
                 resp.failure(f"add to cart returned {resp.status_code}")
 
     @tag("cart")
@@ -186,8 +263,8 @@ class SockShopUser(HttpUser):
     @tag("cart")
     @task(2)
     def update_cart_item(self):
-        """View cart then update quantity of a random item."""
-        with self.client.get("/cart", name="/cart [view]", catch_response=True) as resp:
+        with self.client.get("/cart", name="/cart [view]",
+                             catch_response=True) as resp:
             if resp.status_code == 200:
                 try:
                     items = resp.json()
@@ -196,10 +273,12 @@ class SockShopUser(HttpUser):
                         new_qty = random.randint(1, 5)
                         self.client.post(
                             "/cart/update",
-                            json={"id": item.get("itemId", item.get("id")), "quantity": new_qty},
+                            json={"id": item.get("itemId", item.get("id")),
+                                  "quantity": new_qty},
                             name="/cart/update",
                         )
-                        logger.info("Updated cart item quantity", quantity=new_qty)
+                        cart_operations_counter.add(1, {"operation": "update"})
+                        logger.info("Updated cart item", quantity=new_qty)
                 except Exception:
                     pass
                 resp.success()
@@ -207,23 +286,25 @@ class SockShopUser(HttpUser):
     @tag("cart")
     @task(1)
     def delete_cart_item(self):
-        """Add then remove an item — exercises cart delete endpoint."""
         item_id = random.choice(CATALOGUE_IDS)
         self.client.post("/cart", json={"id": item_id}, name="/cart [add]")
-        with self.client.get("/cart", name="/cart [view]", catch_response=True) as resp:
+        with self.client.get("/cart", name="/cart [view]",
+                             catch_response=True) as resp:
             if resp.status_code == 200:
                 try:
                     items = resp.json()
                     if items:
                         item = random.choice(items)
                         iid = item.get("itemId", item.get("id"))
-                        self.client.delete(f"/cart/{iid}", name="/cart/{id} [delete]")
+                        self.client.delete(f"/cart/{iid}",
+                                           name="/cart/{id} [delete]")
+                        cart_operations_counter.add(1, {"operation": "delete"})
                         logger.info("Deleted cart item", item_id=iid)
                 except Exception:
                     pass
                 resp.success()
 
-    # ── User / profile (hits user service) ───────────────────────────────────
+    # ── User / profile ────────────────────────────────────────────────────────
 
     @tag("user")
     @task(2)
@@ -234,19 +315,16 @@ class SockShopUser(HttpUser):
     @tag("user")
     @task(1)
     def view_addresses(self):
-        if self.user_id:
-            self.client.get(f"/addresses", name="/addresses")
+        self.client.get("/addresses", name="/addresses")
 
     @tag("user")
     @task(1)
     def view_cards(self):
-        if self.user_id:
-            self.client.get(f"/cards", name="/cards")
+        self.client.get("/cards", name="/cards")
 
     @tag("user")
     @task(1)
     def add_address(self):
-        """Add a new shipping address — exercises user service write path."""
         addr = {
             "number":   str(random.randint(1, 999)),
             "street":   random.choice(["Main St", "Oak Ave", "Elm Rd", "Park Blvd"]),
@@ -260,17 +338,16 @@ class SockShopUser(HttpUser):
     @tag("user")
     @task(1)
     def add_card(self):
-        """Add a payment card — exercises user service write path."""
         card = {
-            "longNum":  f"{random.randint(1000,9999)}{random.randint(1000,9999)}"
-                        f"{random.randint(1000,9999)}{random.randint(1000,9999)}",
-            "expires":  f"{random.randint(1,12):02d}/{random.randint(25,30)}",
-            "ccv":      f"{random.randint(100,999)}",
+            "longNum": (f"{random.randint(1000,9999)}{random.randint(1000,9999)}"
+                        f"{random.randint(1000,9999)}{random.randint(1000,9999)}"),
+            "expires": f"{random.randint(1,12):02d}/{random.randint(25,30)}",
+            "ccv":     f"{random.randint(100,999)}",
         }
         logger.info("Adding card")
         self.client.post("/cards", json=card, name="/cards [add]")
 
-    # ── Orders (hits orders + payment + shipping + queue-master) ─────────────
+    # ── Orders ────────────────────────────────────────────────────────────────
 
     @tag("orders")
     @task(2)
@@ -281,41 +358,34 @@ class SockShopUser(HttpUser):
     @tag("orders")
     @task(1)
     def place_order(self):
-        """
-        Full checkout flow:
-          1. Add item to cart
-          2. POST /orders → triggers payment service + shipping service + queue-master
-          3. Poll order status
-        """
+        """Full checkout: add to cart → POST /orders → poll status.
+        Triggers: orders → payment → shipping → queue-master → rabbitmq."""
         item_id = random.choice(CATALOGUE_IDS)
-        logger.info("Starting checkout flow", item_id=item_id)
+        logger.info("Starting checkout", item_id=item_id)
 
-        # Add item to cart
         self.client.post("/cart", json={"id": item_id}, name="/cart [add]")
 
-        # Place order (triggers payment + shipping internally)
-        with self.client.post(
-            "/orders",
-            name="/orders [place]",
-            catch_response=True,
-        ) as resp:
+        with self.client.post("/orders", name="/orders [place]",
+                              catch_response=True) as resp:
             if resp.status_code in (200, 201):
                 try:
                     order = resp.json()
                     order_id = order.get("id", "")
+                    orders_counter.add(1, {"status": "success"})
                     logger.info("Order placed", order_id=order_id, item_id=item_id)
-                    # Poll order status
                     if order_id:
                         time.sleep(0.5)
-                        self.client.get(f"/orders/{order_id}", name="/orders/{id}")
+                        self.client.get(f"/orders/{order_id}",
+                                        name="/orders/{id}")
                 except Exception:
                     pass
                 resp.success()
             else:
-                logger.warning("Order placement failed", status=resp.status_code)
+                orders_counter.add(1, {"status": "failed"})
+                logger.warning("Order failed", status=resp.status_code)
                 resp.failure(f"order returned {resp.status_code}")
 
-    # ── Static / frontend ─────────────────────────────────────────────────────
+    # ── Frontend ──────────────────────────────────────────────────────────────
 
     @tag("frontend")
     @task(3)
@@ -326,19 +396,16 @@ class SockShopUser(HttpUser):
     @tag("frontend")
     @task(1)
     def load_static_assets(self):
-        """Simulate browser loading JS/CSS."""
         for path in ["/topbar.css", "/style.css"]:
             self.client.get(path, name="/static")
 
-    # ── Auth helpers ──────────────────────────────────────────────────────────
+    # ── Auth ──────────────────────────────────────────────────────────────────
 
     def _register_and_login(self):
-        """Register a fresh user, then log in to get a session."""
         suffix = uuid.uuid4().hex[:8]
         username = f"locust_{suffix}"
         password = "Password1"
 
-        # Register
         resp = self.client.post(
             "/register",
             json={"username": username, "password": password,
@@ -351,20 +418,14 @@ class SockShopUser(HttpUser):
                 self.user_id = resp.json().get("id", "")
             except Exception:
                 pass
-            logger.info("Registered new user", username=username)
+            logger.info("Registered", username=username)
         else:
-            logger.warning("Registration failed", status=resp.status_code, username=username)
+            logger.warning("Registration failed",
+                           status=resp.status_code, username=username)
 
-        # Login
-        resp = self.client.get(
-            "/login",
-            auth=(username, password),
-            name="/login",
-        )
+        resp = self.client.get("/login", auth=(username, password), name="/login")
         if resp.status_code == 200:
             logger.info("Logged in", username=username)
         else:
-            logger.warning("Login failed", status=resp.status_code, username=username)
-
-    def on_stop(self):
-        logger.info("User session ending")
+            logger.warning("Login failed",
+                           status=resp.status_code, username=username)
