@@ -56,14 +56,44 @@ services:
     depends_on:
       - log-stream
       - otel
+      - dashboard
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    # SLM: Ollama on host — run `ollama pull llama3.2` (or set SLM_MODEL to a tag you have).
     environment:
       - LOG_STREAM_URL=http://log-stream:8080/v1/stream
       - TEMPO_URL=http://otel:3200
+      - LOKI_URL=http://otel:3100
+      - PROM_URL=http://otel:9090
       - SLM_URL=http://host.docker.internal:11434/api/generate
       - SLM_MODEL=llama3.2
+      # Log LSTM (unchanged)
+      - DRAIN3_WINDOW=24
+      - DRAIN3_FEAT_DIM=8
+      - DRAIN3_WARMUP=64
+      - DRAIN3_Z=4.5
+      - DRAIN3_FORCE_RULES=1
+      # - DRAIN3_CHECKPOINT=/checkpoints/lstm_best.pt
+      # Metric LSTM
+      - PROM_SCRAPE_INTERVAL=15
+      - DRAIN3_METRIC_WINDOW=24
+      - DRAIN3_METRIC_WARMUP=32
+      - DRAIN3_METRIC_Z=4.0
+      - DRAIN3_METRIC_CHECKPOINT=/checkpoints/lstm_metric_best.pt
+      - DASHBOARD_URL=http://dashboard:8050
+    volumes:
+      - ./offline_lstm/checkpoints:/checkpoints:ro
+
+  # ---------------- DASHBOARD ----------------
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "8050:8050"   # Anomaly Dashboard UI
+    depends_on:
+      - otel
+      - log-stream
+    environment:
+      - PROM_URL=http://otel:9090
+      - LOG_STREAM_URL=http://log-stream:8080
 
   # ---------------- LGTM STACK ----------------
   otel:

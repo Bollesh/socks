@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SockShop — Dual-Pipeline Anomaly Detection</title>
+  <meta name="description" content="Real-time anomaly detection dashboard for the Sock Shop microservices application with dual LSTM pipelines." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <!-- ── Header ────────────────────────────────────────────────────── -->
+  <header id="header">
+    <div class="header-left">
+      <div class="logo-group">
+        <div class="logo-icon" id="logo-pulse">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </div>
+        <div>
+          <h1>SockShop Anomaly Detection</h1>
+          <p class="subtitle">Dual-Pipeline LSTM · Real-Time SLM Analysis</p>
+        </div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="status-pill" id="connection-status">
+        <span class="status-dot"></span>
+        <span class="status-text">Connecting…</span>
+      </div>
+      <div class="uptime-badge" id="uptime-badge">--</div>
+    </div>
+  </header>
+
+  <!-- ── Architecture Diagram ──────────────────────────────────────── -->
+  <section id="architecture-section" class="section">
+    <div class="section-header">
+      <h2>System Architecture</h2>
+      <button class="collapse-btn" onclick="toggleSection('arch-content')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+    </div>
+    <div id="arch-content" class="section-content">
+      <div class="arch-diagram">
+        <div class="arch-col">
+          <div class="arch-card source-card">
+            <div class="arch-card-icon">🧦</div>
+            <div class="arch-card-title">Sock Shop</div>
+            <div class="arch-card-sub">Microservices</div>
+          </div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-card source-card">
+            <div class="arch-card-icon">🦗</div>
+            <div class="arch-card-title">Locust</div>
+            <div class="arch-card-sub">Load Generator</div>
+          </div>
+        </div>
+
+        <div class="arch-arrow-horiz">→</div>
+
+        <div class="arch-col">
+          <div class="arch-card otel-card">
+            <div class="arch-card-icon">📡</div>
+            <div class="arch-card-title">OTEL LGTM Stack</div>
+            <div class="arch-card-sub">Loki · Tempo · Prometheus</div>
+          </div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-split">
+            <div class="arch-pipeline" id="arch-log-pipe">
+              <div class="arch-card pipe-card log-pipe-card">
+                <div class="pipe-indicator log"></div>
+                <div class="arch-card-title">Log Pipeline</div>
+                <div class="arch-card-sub">SSE → Drain3 + IF + LSTM</div>
+              </div>
+            </div>
+            <div class="arch-pipeline" id="arch-metric-pipe">
+              <div class="arch-card pipe-card metric-pipe-card">
+                <div class="pipe-indicator metric"></div>
+                <div class="arch-card-title">Metric Pipeline</div>
+                <div class="arch-card-sub">Prometheus → Metric LSTM</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arch-arrow-horiz">→</div>
+
+        <div class="arch-col">
+          <div class="arch-card handler-card">
+            <div class="arch-card-icon">⚡</div>
+            <div class="arch-card-title">Anomaly Handler</div>
+            <div class="arch-card-sub">Context Enrichment</div>
+          </div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-card slm-card">
+            <div class="arch-card-icon">🧠</div>
+            <div class="arch-card-title">SLM (LLaMA 3.2)</div>
+            <div class="arch-card-sub">Root Cause · Fix · Verify</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Stats Cards ──────────────────────────────────────────────── -->
+  <section id="stats-section" class="section">
+    <div class="stats-grid">
+      <div class="stat-card" id="stat-total">
+        <div class="stat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div class="stat-value" id="total-anomalies">0</div>
+        <div class="stat-label">Total Anomalies</div>
+      </div>
+      <div class="stat-card" id="stat-log">
+        <div class="stat-icon log-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <div class="stat-value" id="log-anomalies">0</div>
+        <div class="stat-label">Log Pipeline</div>
+        <div class="stat-sub">Drain3 + Isolation Forest + LSTM</div>
+      </div>
+      <div class="stat-card" id="stat-metric">
+        <div class="stat-icon metric-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div class="stat-value" id="metric-anomalies">0</div>
+        <div class="stat-label">Metric Pipeline</div>
+        <div class="stat-sub">Prometheus LSTM</div>
+      </div>
+      <div class="stat-card" id="stat-slm">
+        <div class="stat-icon slm-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div class="stat-value" id="slm-calls">0</div>
+        <div class="stat-label">SLM Analyses</div>
+        <div class="stat-sub">LLaMA 3.2 RCA</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Live Metrics ─────────────────────────────────────────────── -->
+  <section id="metrics-section" class="section">
+    <div class="section-header">
+      <h2>Live Prometheus Metrics</h2>
+      <div class="refresh-info">Auto-refreshes every 15s</div>
+    </div>
+    <div class="metrics-grid">
+      <div class="metric-tile" id="metric-rps">
+        <div class="metric-tile-label">Request Rate</div>
+        <div class="metric-tile-value" id="val-rps">--</div>
+        <div class="metric-tile-unit">req/s</div>
+        <div class="metric-tile-sparkline"><canvas id="spark-rps" width="120" height="30"></canvas></div>
+      </div>
+      <div class="metric-tile" id="metric-errors">
+        <div class="metric-tile-label">Error Rate</div>
+        <div class="metric-tile-value" id="val-errors">--</div>
+        <div class="metric-tile-unit">err/s</div>
+        <div class="metric-tile-sparkline"><canvas id="spark-errors" width="120" height="30"></canvas></div>
+      </div>
+      <div class="metric-tile" id="metric-p99">
+        <div class="metric-tile-label">P99 Latency</div>
+        <div class="metric-tile-value" id="val-p99">--</div>
+        <div class="metric-tile-unit">ms</div>
+        <div class="metric-tile-sparkline"><canvas id="spark-p99" width="120" height="30"></canvas></div>
+      </div>
+      <div class="metric-tile" id="metric-users">
+        <div class="metric-tile-label">Active Users</div>
+        <div class="metric-tile-value" id="val-users">--</div>
+        <div class="metric-tile-unit">users</div>
+        <div class="metric-tile-sparkline"><canvas id="spark-users" width="120" height="30"></canvas></div>
+      </div>
+      <div class="metric-tile" id="metric-orders">
+        <div class="metric-tile-label">Order Rate</div>
+        <div class="metric-tile-value" id="val-orders">--</div>
+        <div class="metric-tile-unit">ord/s</div>
+        <div class="metric-tile-sparkline"><canvas id="spark-orders" width="120" height="30"></canvas></div>
+      </div>
+      <div class="metric-tile" id="metric-logstream">
+        <div class="metric-tile-label">Logs Ingested</div>
+        <div class="metric-tile-value" id="val-logstream">--</div>
+        <div class="metric-tile-unit">total</div>
+        <div class="metric-tile-sparkline"><canvas id="spark-logstream" width="120" height="30"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Live Anomaly Feed ────────────────────────────────────────── -->
+  <section id="feed-section" class="section">
+    <div class="section-header">
+      <h2>Live Anomaly Feed</h2>
+      <div class="feed-controls">
+        <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">All</button>
+        <button class="filter-btn" data-filter="log" onclick="setFilter('log')">
+          <span class="pipe-dot log"></span> Log
+        </button>
+        <button class="filter-btn" data-filter="metric" onclick="setFilter('metric')">
+          <span class="pipe-dot metric"></span> Metric
+        </button>
+      </div>
+    </div>
+    <div id="anomaly-feed" class="anomaly-feed">
+      <div class="feed-empty" id="feed-empty">
+        <div class="feed-empty-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <p>Waiting for anomaly events…</p>
+        <p class="feed-empty-sub">Both pipelines are running. Anomalies will appear here in real-time.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>SockShop Anomaly Detection · Dual-Pipeline LSTM · Drain3 + Isolation Forest · LLaMA 3.2 SLM</p>
+  </footer>
+
+  <script>
+    // ── State ──────────────────────────────────────────────────────
+    let currentFilter = 'all';
+    let anomalyCount = 0;
+    const sparkData = {
+      rps: [], errors: [], p99: [], users: [], orders: [], logstream: []
+    };
+    const MAX_SPARK = 20;
+
+    // ── SSE Connection ────────────────────────────────────────────
+    function connectSSE() {
+      const statusEl = document.getElementById('connection-status');
+      const es = new EventSource('/api/anomalies/stream');
+
+      es.onopen = () => {
+        statusEl.className = 'status-pill connected';
+        statusEl.querySelector('.status-text').textContent = 'Live';
+      };
+
+      es.onmessage = (e) => {
+        try {
+          const event = JSON.parse(e.data);
+          addAnomalyCard(event);
+          anomalyCount++;
+          pulseArch(event.source);
+        } catch {}
+      };
+
+      es.onerror = () => {
+        statusEl.className = 'status-pill disconnected';
+        statusEl.querySelector('.status-text').textContent = 'Reconnecting…';
+        es.close();
+        setTimeout(connectSSE, 3000);
+      };
+    }
+
+    // ── Anomaly Card ──────────────────────────────────────────────
+    function addAnomalyCard(event) {
+      const feed = document.getElementById('anomaly-feed');
+      const empty = document.getElementById('feed-empty');
+      if (empty) empty.style.display = 'none';
+
+      const card = document.createElement('div');
+      card.className = `anomaly-card ${event.source} fade-in`;
+      card.dataset.source = event.source;
+
+      if (currentFilter !== 'all' && currentFilter !== event.source) {
+        card.style.display = 'none';
+      }
+
+      const time = new Date(event.timestamp * 1000).toLocaleTimeString();
+      const mse = event.mse ? event.mse.toFixed(6) : '0.000000';
+      const reason = event.reason || 'unknown';
+      const slm = event.slm_response || '';
+
+      // Parse SLM response into sections
+      let slmHtml = '';
+      if (slm) {
+        const sections = parseSLMResponse(slm);
+        slmHtml = `
+          <div class="slm-response">
+            <div class="slm-header" onclick="this.parentElement.classList.toggle('expanded')">
+              <span class="slm-icon">🧠</span>
+              <span>SLM Analysis (LLaMA 3.2)</span>
+              <svg class="slm-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="slm-body">${sections}</div>
+          </div>`;
+      }
+
+      card.innerHTML = `
+        <div class="anomaly-card-header">
+          <div class="anomaly-meta">
+            <span class="pipe-badge ${event.source}">${event.source === 'log' ? '📄 Log Pipeline' : '📊 Metric Pipeline'}</span>
+            <span class="anomaly-time">${time}</span>
+          </div>
+          <span class="mse-badge" title="Model MSE">MSE: ${mse}</span>
+        </div>
+        <div class="anomaly-reason">
+          <span class="reason-label">Trigger:</span>
+          <code>${escapeHtml(reason)}</code>
+        </div>
+        ${event.log_entry ? `<div class="anomaly-log-entry"><span class="reason-label">Log:</span> <code>${escapeHtml(truncate(event.log_entry, 200))}</code></div>` : ''}
+        ${event.trace_id ? `<div class="anomaly-trace"><span class="reason-label">Trace:</span> <code>${event.trace_id}</code></div>` : ''}
+        ${slmHtml}
+      `;
+
+      feed.insertBefore(card, feed.firstChild);
+
+      // Keep max 50 cards
+      while (feed.children.length > 51) {
+        feed.removeChild(feed.lastChild);
+      }
+    }
+
+    function parseSLMResponse(text) {
+      // Try to split into ROOT CAUSE / IMMEDIATE FIX / VERIFY sections
+      let html = '';
+      const sections = [
+        { pattern: /(?:1\.\s*)?ROOT\s*CAUSE[:\s]*/i, icon: '🔍', title: 'Root Cause', cls: 'root-cause' },
+        { pattern: /(?:2\.\s*)?IMMEDIATE\s*FIX[:\s]*/i, icon: '🔧', title: 'Immediate Fix', cls: 'fix' },
+        { pattern: /(?:3\.\s*)?VERIFY[:\s]*/i, icon: '✅', title: 'Verify', cls: 'verify' },
+      ];
+
+      let parts = [];
+      let remaining = text;
+      const indices = sections.map(s => {
+        const m = remaining.match(s.pattern);
+        return m ? { ...s, index: remaining.indexOf(m[0]), len: m[0].length } : null;
+      }).filter(Boolean).sort((a, b) => a.index - b.index);
+
+      if (indices.length >= 2) {
+        for (let i = 0; i < indices.length; i++) {
+          const start = indices[i].index + indices[i].len;
+          const end = i + 1 < indices.length ? indices[i + 1].index : remaining.length;
+          const content = remaining.slice(start, end).trim();
+          html += `<div class="slm-section ${indices[i].cls}">
+            <div class="slm-section-title"><span>${indices[i].icon}</span> ${indices[i].title}</div>
+            <div class="slm-section-body">${escapeHtml(content)}</div>
+          </div>`;
+        }
+      } else {
+        html = `<div class="slm-section"><div class="slm-section-body">${escapeHtml(text)}</div></div>`;
+      }
+      return html;
+    }
+
+    // ── Filter ────────────────────────────────────────────────────
+    function setFilter(f) {
+      currentFilter = f;
+      document.querySelectorAll('.filter-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.filter === f);
+      });
+      document.querySelectorAll('.anomaly-card').forEach(card => {
+        if (f === 'all' || card.dataset.source === f) {
+          card.style.display = '';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+
+    // ── Stats polling ─────────────────────────────────────────────
+    async function pollStats() {
+      try {
+        const r = await fetch('/api/stats');
+        const s = await r.json();
+        document.getElementById('total-anomalies').textContent = s.total_anomalies;
+        document.getElementById('log-anomalies').textContent = s.log_anomalies;
+        document.getElementById('metric-anomalies').textContent = s.metric_anomalies;
+        document.getElementById('slm-calls').textContent = s.slm_calls;
+        const mins = Math.floor(s.uptime_s / 60);
+        const secs = Math.floor(s.uptime_s % 60);
+        document.getElementById('uptime-badge').textContent = `${mins}m ${secs}s`;
+      } catch {}
+    }
+
+    // ── Prometheus metrics polling ────────────────────────────────
+    const promQueries = {
+      rps:    'rate(http_requests_total[1m])',
+      errors: 'rate(http_errors_total[1m])',
+      p99:    'histogram_quantile(0.99, rate(http_request_duration_ms_milliseconds_bucket[1m]))',
+      users:  'locust_active_users',
+      orders: 'rate(orders_placed_total[1m])',
+    };
+
+    async function pollMetrics() {
+      for (const [key, query] of Object.entries(promQueries)) {
+        try {
+          const r = await fetch(`/api/prom/query?query=${encodeURIComponent(query)}`);
+          const j = await r.json();
+          const result = j?.data?.result;
+          let val = 0;
+          if (result && result.length > 0) {
+            val = parseFloat(result[0].value[1]) || 0;
+          }
+          const el = document.getElementById(`val-${key}`);
+          if (key === 'p99') {
+            el.textContent = val > 0 ? val.toFixed(0) : '--';
+          } else if (key === 'users') {
+            el.textContent = Math.round(val);
+          } else {
+            el.textContent = val > 0 ? val.toFixed(2) : '0.00';
+          }
+          sparkData[key].push(val);
+          if (sparkData[key].length > MAX_SPARK) sparkData[key].shift();
+          drawSparkline(`spark-${key}`, sparkData[key], key === 'errors' ? '#ff6b6b' : '#6ee7b7');
+        } catch {}
+      }
+      // Log-stream ingests
+      try {
+        const r = await fetch('/api/logstream/health');
+        const j = await r.json();
+        document.getElementById('val-logstream').textContent = j.ingests_total || 0;
+        sparkData.logstream.push(j.ingests_total || 0);
+        if (sparkData.logstream.length > MAX_SPARK) sparkData.logstream.shift();
+        drawSparkline('spark-logstream', sparkData.logstream, '#a78bfa');
+      } catch {}
+    }
+
+    // ── Sparkline renderer ────────────────────────────────────────
+    function drawSparkline(canvasId, data, color) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas || data.length < 2) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const min = Math.min(...data);
+      const max = Math.max(...data);
+      const range = max - min || 1;
+
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      data.forEach((v, i) => {
+        const x = (i / (data.length - 1)) * w;
+        const y = h - ((v - min) / range) * (h - 4) - 2;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Fill area
+      const lastX = w, lastY = h - ((data[data.length - 1] - min) / range) * (h - 4) - 2;
+      ctx.lineTo(lastX, h);
+      ctx.lineTo(0, h);
+      ctx.closePath();
+      ctx.fillStyle = color + '15';
+      ctx.fill();
+    }
+
+    // ── Architecture pulse animation ──────────────────────────────
+    function pulseArch(source) {
+      const id = source === 'log' ? 'arch-log-pipe' : 'arch-metric-pipe';
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.add('pulse');
+        setTimeout(() => el.classList.remove('pulse'), 1500);
+      }
+      document.getElementById('logo-pulse').classList.add('pulse');
+      setTimeout(() => document.getElementById('logo-pulse').classList.remove('pulse'), 1000);
+    }
+
+    // ── Section toggle ────────────────────────────────────────────
+    function toggleSection(id) {
+      const el = document.getElementById(id);
+      el.classList.toggle('collapsed');
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────
+    function escapeHtml(s) {
+      if (!s) return '';
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function truncate(s, n) {
+      if (!s) return '';
+      return s.length > n ? s.slice(0, n) + '…' : s;
+    }
+
+    // ── Load history on startup ───────────────────────────────────
+    async function loadHistory() {
+      try {
+        const r = await fetch('/api/anomalies/history');
+        const items = await r.json();
+        items.forEach(item => addAnomalyCard(item));
+      } catch {}
+    }
+
+    // ── Init ──────────────────────────────────────────────────────
+    connectSSE();
+    loadHistory();
+    pollStats();
+    pollMetrics();
+    setInterval(pollStats, 5000);
+    setInterval(pollMetrics, 15000);
+  </script>
+</body>
+</html>
