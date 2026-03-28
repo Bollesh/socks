@@ -26,8 +26,9 @@ def main():
 
     df = pd.read_csv(args.input).sort_values("timestamp")
     df[METRIC_QUERIES] = df[METRIC_QUERIES].fillna(0.0)
-    feats = np.stack([normalise(list(row[1:])) for row in df[METRIC_QUERIES].itertuples()], axis=0)
-
+    # feats = np.stack([normalise(list(row[1:])) for row in df[METRIC_QUERIES].itertuples()], axis=0)
+    feats = np.stack([normalise(list(row)) for row in df[METRIC_QUERIES].to_numpy()], axis=0)
+    
     X, y = build_windows(feats, args.window)
     n = len(X)
     n_tr = int(n * TRAIN_FRAC)

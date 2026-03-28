@@ -73,6 +73,7 @@ services:
       - DRAIN3_Z=4.5
       - DRAIN3_FORCE_RULES=1
       # - DRAIN3_CHECKPOINT=/checkpoints/lstm_best.pt
+      - DRAIN3_COOLDOWN_S=30
       # Metric LSTM
       - PROM_SCRAPE_INTERVAL=15
       - DRAIN3_METRIC_WINDOW=24

@@ -6,6 +6,8 @@ Pipeline 2: Prometheus scrape → metric LSTM → handle_anomaly
 Both pipelines call the shared handle_anomaly() which fetches context and calls the SLM.
 """
 from __future__ import annotations
+import time
+from collections import defaultdict
 
 import asyncio
 import hashlib
@@ -228,6 +230,17 @@ Respond with exactly three sections:
             log.debug("Dashboard push failed: %s", exc)
 
 
+ANOMALY_COOLDOWN_S = float(os.environ.get("DRAIN3_COOLDOWN_S", "30"))
+_last_fired: dict[str, float] = {}   # reason_key → last fire time
+
+def _is_cooled_down(key: str) -> bool:
+    now = time.time()
+    if now - _last_fired.get(key, 0) > ANOMALY_COOLDOWN_S:
+        _last_fired[key] = now
+        return True
+    return False
+
+    
 # ── Log pipeline ──────────────────────────────────────────────────────────────
 async def run_log_pipeline(
     client: httpx.AsyncClient,
@@ -278,21 +291,23 @@ async def run_log_pipeline(
                         # Rule check
                         ra, rreason = _rule_anomaly(entry)
                         if FORCE_RULES and ra:
-                            await on_anomaly(
-                                source="log", entry=entry,
-                                mse=0.0, reason=rreason,
-                                anomaly_time_ns=time.time_ns(),
-                            )
+                            if _is_cooled_down(rreason):
+                                await on_anomaly(
+                                    source="log", entry=entry,
+                                    mse=0.0, reason=rreason,
+                                    anomaly_time_ns=time.time_ns(),
+                                )
                             continue
 
                         # Drain3 + Isolation Forest check
                         is_anom, dreason = detector.process(entry, vec)
                         if is_anom:
-                            await on_anomaly(
-                                source="log", entry=entry,
-                                mse=0.0, reason=dreason,
-                                anomaly_time_ns=time.time_ns(),
-                            )
+                            if _is_cooled_down(dreason):
+                                await on_anomaly(
+                                    source="log", entry=entry,
+                                    mse=0.0, reason=dreason,
+                                    anomaly_time_ns=time.time_ns(),
+                                )
                             continue
 
                         # LSTM check (same as original)
@@ -313,11 +328,13 @@ async def run_log_pipeline(
                             float(np.mean(arr) + Z_MULT * max(np.std(arr), 1e-6)),
                         )
                         if mse > thr:
-                            await on_anomaly(
-                                source="log", entry=entry,
-                                mse=mse, reason=f"log_lstm:mse>{thr:.6f}",
-                                anomaly_time_ns=time.time_ns(),
-                            )
+                            reason_string = f"log_lstm:mse>{thr:.6f}"
+                            if _is_cooled_down(reason_string):
+                                await on_anomaly(
+                                    source="log", entry=entry,
+                                    mse=mse, reason=reason_string,
+                                    anomaly_time_ns=time.time_ns(),
+                                )
         except asyncio.CancelledError:
             raise
         except Exception as exc:

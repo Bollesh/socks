@@ -51,10 +51,20 @@ class LogAnomalyDetector:
         if result is None:
             return False, ""
 
-        tid = result.get("cluster_id")
-        if tid is None:
+        # drain3 returns a LogClusteringResult with .cluster attribute
+        cluster = result.cluster
+        if cluster is None:
             return False, ""
-        template = result.get("template_mined", "")
+        tid = cluster.cluster_id
+        template = cluster.get_template()
+        # result = self._miner.add_log_message(message)
+        # if result is None:
+        #     return False, ""
+
+        # tid = result.get("cluster_id")
+        # if tid is None:
+        #     return False, ""
+        # template = result.get("template_mined", "")
         is_new = tid not in self._known
         self._known.add(tid)
 

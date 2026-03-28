@@ -1,6 +1,13 @@
+# torch
+# numpy
+# pandas
+# matplotlib
+# seaborn
+# requests
 torch
-numpy
+numpy==2.1.3
 pandas
 matplotlib
 seaborn
 requests
+scikit-learn==1.5.2

@@ -6,7 +6,8 @@ from __future__ import annotations
 import argparse, time, math
 import pandas as pd
 import requests
-from config import DATA, LOKI_URL
+# from config import DATA, LOKI_URL
+from config import DATA
 from metric_features import METRIC_QUERIES
 
 PROM_URL = "http://localhost:9090"
