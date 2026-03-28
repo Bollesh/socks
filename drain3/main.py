@@ -220,9 +220,11 @@ Respond with exactly three sections:
             "mse": mse,
             "trace_id": trace_id or None,
             "log_entry": json.dumps(entry, default=str)[:500] if entry else None,
+            "slm_prompt": prompt,
             "slm_response": reply,
             "timestamp": anomaly_time_ns / 1e9,
             "metric_snapshot": {k: round(v, 4) for k, v in (metric_snapshot or {}).items()},
+            "trace_summary": trace_blurb,
         }
         try:
             await client.post(f"{DASHBOARD_URL}/api/anomalies", json=dashboard_event, timeout=5.0)

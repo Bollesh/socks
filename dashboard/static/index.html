@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SockShop — Dual-Pipeline Anomaly Detection</title>
-  <meta name="description" content="Real-time anomaly detection dashboard for the Sock Shop microservices application with dual LSTM pipelines." />
+  <title>SockShop — AI-Powered Anomaly Detection & Remediation</title>
+  <meta name="description" content="Real-time AI observability dashboard for Sock Shop microservices. Dual-pipeline LSTM anomaly detection with SLM-powered root cause analysis." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-  <!-- ── Header ────────────────────────────────────────────────────── -->
+
+  <!-- ═══════════════ HEADER ═══════════════════════════════════════ -->
   <header id="header">
     <div class="header-left">
       <div class="logo-group">
@@ -20,7 +21,7 @@
         </div>
         <div>
           <h1>SockShop Anomaly Detection</h1>
-          <p class="subtitle">Dual-Pipeline LSTM · Real-Time SLM Analysis</p>
+          <p class="subtitle">Dual-Pipeline LSTM · Drain3 · Isolation Forest · LLaMA 3.2 SLM</p>
         </div>
       </div>
     </div>
@@ -33,77 +34,185 @@
     </div>
   </header>
 
-  <!-- ── Architecture Diagram ──────────────────────────────────────── -->
+  <!-- ═══════════════ ARCHITECTURE DIAGRAM ═════════════════════════ -->
   <section id="architecture-section" class="section">
     <div class="section-header">
-      <h2>System Architecture</h2>
+      <h2>🏗️ System Architecture</h2>
       <button class="collapse-btn" onclick="toggleSection('arch-content')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
     </div>
     <div id="arch-content" class="section-content">
-      <div class="arch-diagram">
-        <div class="arch-col">
-          <div class="arch-card source-card">
-            <div class="arch-card-icon">🧦</div>
-            <div class="arch-card-title">Sock Shop</div>
-            <div class="arch-card-sub">Microservices</div>
-          </div>
-          <div class="arch-arrow">↓</div>
-          <div class="arch-card source-card">
-            <div class="arch-card-icon">🦗</div>
-            <div class="arch-card-title">Locust</div>
-            <div class="arch-card-sub">Load Generator</div>
-          </div>
-        </div>
+      <div class="arch-container">
+        <div class="arch-svg-wrap">
+          <svg id="arch-svg" viewBox="0 0 1060 400" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif">
+            <defs>
+              <!-- Gradient fills -->
+              <linearGradient id="grad-sockshop" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#1e293b"/>
+                <stop offset="100%" stop-color="#0f172a"/>
+              </linearGradient>
+              <linearGradient id="grad-otel" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#1a1e3a"/>
+                <stop offset="100%" stop-color="#0f1229"/>
+              </linearGradient>
+              <linearGradient id="grad-log" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="rgba(34,211,238,0.12)"/>
+                <stop offset="100%" stop-color="rgba(34,211,238,0.04)"/>
+              </linearGradient>
+              <linearGradient id="grad-metric" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="rgba(245,158,11,0.12)"/>
+                <stop offset="100%" stop-color="rgba(245,158,11,0.04)"/>
+              </linearGradient>
+              <linearGradient id="grad-handler" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="rgba(168,85,247,0.12)"/>
+                <stop offset="100%" stop-color="rgba(168,85,247,0.04)"/>
+              </linearGradient>
+              <linearGradient id="grad-slm" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="rgba(99,102,241,0.15)"/>
+                <stop offset="100%" stop-color="rgba(168,85,247,0.15)"/>
+              </linearGradient>
+              <linearGradient id="grad-dashboard" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="rgba(16,185,129,0.12)"/>
+                <stop offset="100%" stop-color="rgba(16,185,129,0.04)"/>
+              </linearGradient>
+              <!-- Arrow marker -->
+              <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#475569"/>
+              </marker>
+              <marker id="arrowhead-cyan" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#22d3ee"/>
+              </marker>
+              <marker id="arrowhead-amber" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#f59e0b"/>
+              </marker>
+              <marker id="arrowhead-purple" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#a78bfa"/>
+              </marker>
+              <marker id="arrowhead-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#10b981"/>
+              </marker>
+              <!-- Glow filter -->
+              <filter id="glow-cyan"><feGaussianBlur stdDeviation="3" result="blur"/><feComposite in="SourceGraphic" in2="blur" operator="over"/></filter>
+              <filter id="glow-amber"><feGaussianBlur stdDeviation="3" result="blur"/><feComposite in="SourceGraphic" in2="blur" operator="over"/></filter>
+            </defs>
 
-        <div class="arch-arrow-horiz">→</div>
+            <!-- ── NODES ─────────────────────────────────────────── -->
 
-        <div class="arch-col">
-          <div class="arch-card otel-card">
-            <div class="arch-card-icon">📡</div>
-            <div class="arch-card-title">OTEL LGTM Stack</div>
-            <div class="arch-card-sub">Loki · Tempo · Prometheus</div>
-          </div>
-          <div class="arch-arrow">↓</div>
-          <div class="arch-split">
-            <div class="arch-pipeline" id="arch-log-pipe">
-              <div class="arch-card pipe-card log-pipe-card">
-                <div class="pipe-indicator log"></div>
-                <div class="arch-card-title">Log Pipeline</div>
-                <div class="arch-card-sub">SSE → Drain3 + IF + LSTM</div>
-              </div>
-            </div>
-            <div class="arch-pipeline" id="arch-metric-pipe">
-              <div class="arch-card pipe-card metric-pipe-card">
-                <div class="pipe-indicator metric"></div>
-                <div class="arch-card-title">Metric Pipeline</div>
-                <div class="arch-card-sub">Prometheus → Metric LSTM</div>
-              </div>
-            </div>
-          </div>
-        </div>
+            <!-- Col 1: Sock Shop + Locust -->
+            <g class="arch-node" id="node-sockshop">
+              <rect x="20" y="60" width="150" height="100" rx="12" fill="url(#grad-sockshop)" stroke="#334155" stroke-width="1.5"/>
+              <text x="95" y="95" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700">🧦 Sock Shop</text>
+              <text x="95" y="114" text-anchor="middle" fill="#64748b" font-size="9">8 Microservices</text>
+              <text x="95" y="128" text-anchor="middle" fill="#64748b" font-size="8">catalogue · carts · orders</text>
+              <text x="95" y="140" text-anchor="middle" fill="#64748b" font-size="8">payment · shipping · user</text>
+            </g>
+            <g class="arch-node" id="node-locust">
+              <rect x="20" y="220" width="150" height="80" rx="12" fill="url(#grad-sockshop)" stroke="#334155" stroke-width="1.5"/>
+              <text x="95" y="255" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700">🦗 Locust</text>
+              <text x="95" y="274" text-anchor="middle" fill="#64748b" font-size="9">Load Generator</text>
+              <text x="95" y="287" text-anchor="middle" fill="#64748b" font-size="8">OTLP traces + metrics + logs</text>
+            </g>
 
-        <div class="arch-arrow-horiz">→</div>
+            <!-- Col 2: OTEL LGTM Stack -->
+            <g class="arch-node" id="node-otel">
+              <rect x="240" y="110" width="160" height="140" rx="12" fill="url(#grad-otel)" stroke="#4338ca" stroke-width="1.5" stroke-opacity="0.5"/>
+              <text x="320" y="145" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700">📡 OTEL LGTM</text>
+              <text x="320" y="165" text-anchor="middle" fill="#818cf8" font-size="9" font-weight="600">Grafana Stack</text>
+              <text x="320" y="188" text-anchor="middle" fill="#64748b" font-size="9">📋 Loki → Logs</text>
+              <text x="320" y="204" text-anchor="middle" fill="#64748b" font-size="9">🔭 Tempo → Traces</text>
+              <text x="320" y="220" text-anchor="middle" fill="#64748b" font-size="9">📊 Prometheus → Metrics</text>
+              <text x="320" y="240" text-anchor="middle" fill="#475569" font-size="8">log-stream SSE hub</text>
+            </g>
 
-        <div class="arch-col">
-          <div class="arch-card handler-card">
-            <div class="arch-card-icon">⚡</div>
-            <div class="arch-card-title">Anomaly Handler</div>
-            <div class="arch-card-sub">Context Enrichment</div>
-          </div>
-          <div class="arch-arrow">↓</div>
-          <div class="arch-card slm-card">
-            <div class="arch-card-icon">🧠</div>
-            <div class="arch-card-title">SLM (LLaMA 3.2)</div>
-            <div class="arch-card-sub">Root Cause · Fix · Verify</div>
-          </div>
+            <!-- Col 3: Dual Pipelines -->
+            <g class="arch-pipe-group" id="arch-log-pipe">
+              <rect x="480" y="65" width="160" height="100" rx="12" fill="url(#grad-log)" stroke="rgba(34,211,238,0.4)" stroke-width="1.5"/>
+              <rect x="480" y="65" width="5" height="100" rx="2" fill="#22d3ee"/>
+              <text x="568" y="98" text-anchor="middle" fill="#22d3ee" font-size="11" font-weight="700">📄 Log Pipeline</text>
+              <text x="568" y="116" text-anchor="middle" fill="#94a3b8" font-size="8.5">SSE → Drain3 Template</text>
+              <text x="568" y="130" text-anchor="middle" fill="#94a3b8" font-size="8.5">Isolation Forest + LSTM</text>
+              <text x="568" y="148" text-anchor="middle" fill="#64748b" font-size="8">Rule engine: 5xx / errors</text>
+            </g>
+            <g class="arch-pipe-group" id="arch-metric-pipe">
+              <rect x="480" y="200" width="160" height="100" rx="12" fill="url(#grad-metric)" stroke="rgba(245,158,11,0.4)" stroke-width="1.5"/>
+              <rect x="480" y="200" width="5" height="100" rx="2" fill="#f59e0b"/>
+              <text x="568" y="233" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="700">📊 Metric Pipeline</text>
+              <text x="568" y="251" text-anchor="middle" fill="#94a3b8" font-size="8.5">Prometheus Scrape</text>
+              <text x="568" y="265" text-anchor="middle" fill="#94a3b8" font-size="8.5">LSTM t+1 Predictor</text>
+              <text x="568" y="283" text-anchor="middle" fill="#64748b" font-size="8">6-dim feature vector</text>
+            </g>
+
+            <!-- Col 4: Handler + SLM -->
+            <g class="arch-node" id="node-handler">
+              <rect x="720" y="65" width="150" height="85" rx="12" fill="url(#grad-handler)" stroke="rgba(168,85,247,0.4)" stroke-width="1.5"/>
+              <text x="795" y="95" text-anchor="middle" fill="#a78bfa" font-size="11" font-weight="700">⚡ Anomaly Handler</text>
+              <text x="795" y="112" text-anchor="middle" fill="#94a3b8" font-size="8.5">Context Enrichment</text>
+              <text x="795" y="127" text-anchor="middle" fill="#64748b" font-size="8">trace + metrics + logs</text>
+              <text x="795" y="140" text-anchor="middle" fill="#64748b" font-size="8">prompt construction</text>
+            </g>
+            <g class="arch-node" id="node-slm">
+              <rect x="720" y="185" width="150" height="85" rx="12" fill="url(#grad-slm)" stroke="rgba(99,102,241,0.4)" stroke-width="1.5"/>
+              <text x="795" y="215" text-anchor="middle" fill="#818cf8" font-size="11" font-weight="700">🧠 SLM</text>
+              <text x="795" y="233" text-anchor="middle" fill="#94a3b8" font-size="9">LLaMA 3.2 (Ollama)</text>
+              <text x="795" y="250" text-anchor="middle" fill="#64748b" font-size="8">Root Cause · Fix · Verify</text>
+            </g>
+
+            <!-- Col 5: Dashboard -->
+            <g class="arch-node" id="node-dashboard">
+              <rect x="920" y="120" width="120" height="90" rx="12" fill="url(#grad-dashboard)" stroke="rgba(16,185,129,0.4)" stroke-width="1.5"/>
+              <text x="980" y="153" text-anchor="middle" fill="#10b981" font-size="11" font-weight="700">🖥️ Dashboard</text>
+              <text x="980" y="170" text-anchor="middle" fill="#94a3b8" font-size="8.5">Real-Time SSE Feed</text>
+              <text x="980" y="184" text-anchor="middle" fill="#64748b" font-size="8">Live metrics + timeline</text>
+              <text x="980" y="198" text-anchor="middle" fill="#64748b" font-size="8">Full SLM transparency</text>
+            </g>
+
+            <!-- ── FLOW LINES ────────────────────────────────────── -->
+
+            <!-- Sock Shop → OTEL -->
+            <line x1="170" y1="110" x2="240" y2="155" stroke="#475569" stroke-width="1.5" class="flow-line-slow" marker-end="url(#arrowhead)"/>
+            <!-- Locust → OTEL -->
+            <line x1="170" y1="255" x2="240" y2="205" stroke="#475569" stroke-width="1.5" class="flow-line-slow" marker-end="url(#arrowhead)"/>
+
+            <!-- OTEL → Log Pipeline -->
+            <line x1="400" y1="155" x2="480" y2="115" stroke="#22d3ee" stroke-width="1.5" stroke-opacity="0.6" class="flow-line" marker-end="url(#arrowhead-cyan)"/>
+            <!-- OTEL → Metric Pipeline -->
+            <line x1="400" y1="210" x2="480" y2="250" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.6" class="flow-line" marker-end="url(#arrowhead-amber)"/>
+
+            <!-- Log Pipeline → Handler -->
+            <line x1="640" y1="115" x2="720" y2="107" stroke="#22d3ee" stroke-width="1.5" stroke-opacity="0.5" class="flow-line" marker-end="url(#arrowhead-cyan)"/>
+            <!-- Metric Pipeline → Handler -->
+            <line x1="640" y1="250" x2="720" y2="130" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.5" class="flow-line" marker-end="url(#arrowhead-amber)"/>
+
+            <!-- Handler → SLM -->
+            <line x1="795" y1="150" x2="795" y2="185" stroke="#a78bfa" stroke-width="1.5" stroke-opacity="0.6" class="flow-line" marker-end="url(#arrowhead-purple)"/>
+
+            <!-- SLM → Dashboard -->
+            <path d="M870 227 Q 900 227 920 190" fill="none" stroke="#10b981" stroke-width="1.5" stroke-opacity="0.6" class="flow-line" marker-end="url(#arrowhead-green)"/>
+
+            <!-- ── LABELS ────────────────────────────────────────── -->
+            <text x="205" y="124" fill="#475569" font-size="7" text-anchor="middle" transform="rotate(-12, 205, 124)">OTLP</text>
+            <text x="205" y="240" fill="#475569" font-size="7" text-anchor="middle" transform="rotate(12, 205, 240)">OTLP</text>
+            <text x="440" y="125" fill="#22d3ee" font-size="7" text-anchor="middle" opacity="0.7">SSE</text>
+            <text x="440" y="240" fill="#f59e0b" font-size="7" text-anchor="middle" opacity="0.7">scrape</text>
+            <text x="680" y="100" fill="#22d3ee" font-size="7" text-anchor="middle" opacity="0.6">anomaly</text>
+            <text x="680" y="200" fill="#f59e0b" font-size="7" text-anchor="middle" opacity="0.6">anomaly</text>
+            <text x="810" y="174" fill="#a78bfa" font-size="7" text-anchor="middle" opacity="0.7">prompt</text>
+            <text x="905" y="200" fill="#10b981" font-size="7" text-anchor="middle" opacity="0.7">result</text>
+
+            <!-- ── SLA badge ─────────────────────────────────────── -->
+            <g transform="translate(420, 330)">
+              <rect x="0" y="0" width="220" height="40" rx="8" fill="rgba(99,102,241,0.08)" stroke="rgba(99,102,241,0.25)" stroke-width="1"/>
+              <text x="110" y="18" text-anchor="middle" fill="#818cf8" font-size="9" font-weight="700">⏱ End-to-End Pipeline</text>
+              <text x="110" y="32" text-anchor="middle" fill="#64748b" font-size="8">Detect → Enrich → Analyse → Display</text>
+            </g>
+          </svg>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ── Stats Cards ──────────────────────────────────────────────── -->
+  <!-- ═══════════════ STATS CARDS ══════════════════════════════════ -->
   <section id="stats-section" class="section">
     <div class="stats-grid">
       <div class="stat-card" id="stat-total">
@@ -135,15 +244,15 @@
         </div>
         <div class="stat-value" id="slm-calls">0</div>
         <div class="stat-label">SLM Analyses</div>
-        <div class="stat-sub">LLaMA 3.2 RCA</div>
+        <div class="stat-sub">LLaMA 3.2 Root Cause Analysis</div>
       </div>
     </div>
   </section>
 
-  <!-- ── Live Metrics ─────────────────────────────────────────────── -->
+  <!-- ═══════════════ LIVE PROMETHEUS METRICS ═════════════════════ -->
   <section id="metrics-section" class="section">
     <div class="section-header">
-      <h2>Live Prometheus Metrics</h2>
+      <h2>📊 Live Prometheus Metrics</h2>
       <div class="refresh-info">Auto-refreshes every 15s</div>
     </div>
     <div class="metrics-grid">
@@ -186,10 +295,26 @@
     </div>
   </section>
 
-  <!-- ── Live Anomaly Feed ────────────────────────────────────────── -->
+  <!-- ═══════════════ ANOMALY TIMELINE ════════════════════════════ -->
+  <section id="timeline-section" class="section">
+    <div class="timeline-container">
+      <div class="timeline-label">
+        <span>Anomaly Timeline</span>
+        <div class="dot-legend">
+          <span><span class="dot" style="background:#22d3ee"></span> Log</span>
+          <span><span class="dot" style="background:#f59e0b"></span> Metric</span>
+        </div>
+      </div>
+      <div class="timeline-canvas-wrap">
+        <canvas id="timeline-canvas"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ LIVE ANOMALY FEED ═══════════════════════════ -->
   <section id="feed-section" class="section">
     <div class="section-header">
-      <h2>Live Anomaly Feed</h2>
+      <h2>🔴 Live Anomaly Feed</h2>
       <div class="feed-controls">
         <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">All</button>
         <button class="filter-btn" data-filter="log" onclick="setFilter('log')">
@@ -206,25 +331,35 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </div>
         <p>Waiting for anomaly events…</p>
-        <p class="feed-empty-sub">Both pipelines are running. Anomalies will appear here in real-time.</p>
+        <p class="feed-empty-sub">Both pipelines are running. Anomalies will appear here in real-time with full SLM prompt and response data.</p>
       </div>
     </div>
   </section>
 
+  <!-- ═══════════════ FOOTER ══════════════════════════════════════ -->
   <footer>
     <p>SockShop Anomaly Detection · Dual-Pipeline LSTM · Drain3 + Isolation Forest · LLaMA 3.2 SLM</p>
+    <p style="margin-top:4px;">Built for <a href="#">The Sad MIT Hackathon</a></p>
   </footer>
 
+  <!-- ═══════════════════════════════════════════════════════════════
+       JAVASCRIPT
+       ═══════════════════════════════════════════════════════════════ -->
   <script>
-    // ── State ──────────────────────────────────────────────────────
+  (function() {
+    'use strict';
+
+    // ── State ────────────────────────────────────────────────────
     let currentFilter = 'all';
     let anomalyCount = 0;
-    const sparkData = {
-      rps: [], errors: [], p99: [], users: [], orders: [], logstream: []
-    };
+    const sparkData = { rps:[], errors:[], p99:[], users:[], orders:[], logstream:[] };
     const MAX_SPARK = 20;
+    const timelineEvents = []; // {timestamp, source}
+    const TIMELINE_WINDOW_S = 600; // 10 min window
+    let tabIdCounter = 0;
+    const GRAFANA_URL = 'http://localhost:3000';
 
-    // ── SSE Connection ────────────────────────────────────────────
+    // ── SSE Connection ───────────────────────────────────────────
     function connectSSE() {
       const statusEl = document.getElementById('connection-status');
       const es = new EventSource('/api/anomalies/stream');
@@ -240,6 +375,7 @@
           addAnomalyCard(event);
           anomalyCount++;
           pulseArch(event.source);
+          addTimelineEvent(event);
         } catch {}
       };
 
@@ -251,7 +387,18 @@
       };
     }
 
-    // ── Anomaly Card ──────────────────────────────────────────────
+    // ── Severity classification ──────────────────────────────────
+    function classifySeverity(event) {
+      const reason = (event.reason || '').toLowerCase();
+      const mse = event.mse || 0;
+      if (reason.includes('rule:http_5xx') || reason.includes('rule:log_level_error'))
+        return { level: 'critical', label: 'Critical', icon: '🔴' };
+      if (mse > 0.01 || reason.includes('isolation_forest'))
+        return { level: 'warning', label: 'Warning', icon: '🟡' };
+      return { level: 'info', label: 'Info', icon: '🔵' };
+    }
+
+    // ── Anomaly Card ─────────────────────────────────────────────
     function addAnomalyCard(event) {
       const feed = document.getElementById('anomaly-feed');
       const empty = document.getElementById('feed-empty');
@@ -268,38 +415,91 @@
       const time = new Date(event.timestamp * 1000).toLocaleTimeString();
       const mse = event.mse ? event.mse.toFixed(6) : '0.000000';
       const reason = event.reason || 'unknown';
-      const slm = event.slm_response || '';
+      const severity = classifySeverity(event);
+      const cardId = `card-${++tabIdCounter}`;
 
-      // Parse SLM response into sections
-      let slmHtml = '';
-      if (slm) {
-        const sections = parseSLMResponse(slm);
-        slmHtml = `
-          <div class="slm-response">
-            <div class="slm-header" onclick="this.parentElement.classList.toggle('expanded')">
-              <span class="slm-icon">🧠</span>
-              <span>SLM Analysis (LLaMA 3.2)</span>
-              <svg class="slm-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-            </div>
-            <div class="slm-body">${sections}</div>
+      // Build the detail tabs
+      const tabs = [];
+      const panels = [];
+
+      // Tab 1: SLM Prompt
+      if (event.slm_prompt) {
+        tabs.push({ id: `${cardId}-prompt`, icon: '📥', label: 'SLM Prompt' });
+        panels.push({ id: `${cardId}-prompt`, content: buildPromptPanel(event.slm_prompt) });
+      }
+
+      // Tab 2: Metric Snapshot
+      if (event.metric_snapshot && Object.keys(event.metric_snapshot).length > 0) {
+        tabs.push({ id: `${cardId}-metrics`, icon: '📊', label: 'Metrics' });
+        panels.push({ id: `${cardId}-metrics`, content: buildMetricSnapshotPanel(event.metric_snapshot) });
+      }
+
+      // Tab 3: Log Entry
+      if (event.log_entry) {
+        tabs.push({ id: `${cardId}-log`, icon: '📄', label: 'Log Entry' });
+        panels.push({ id: `${cardId}-log`, content: buildLogEntryPanel(event.log_entry) });
+      }
+
+      // Tab 4: Trace Summary
+      if (event.trace_summary) {
+        tabs.push({ id: `${cardId}-trace`, icon: '🔭', label: 'Trace' });
+        panels.push({ id: `${cardId}-trace`, content: buildTraceSummaryPanel(event.trace_summary) });
+      }
+
+      // Tab 5: SLM Response
+      if (event.slm_response) {
+        tabs.push({ id: `${cardId}-response`, icon: '🧠', label: 'SLM Response' });
+        panels.push({ id: `${cardId}-response`, content: buildSLMResponsePanel(event.slm_response) });
+      }
+
+      // Build tab HTML
+      let detailHtml = '';
+      if (tabs.length > 0) {
+        const tabBar = tabs.map((t, i) =>
+          `<button class="detail-tab-btn ${i === 0 ? 'active' : ''}" onclick="switchTab('${t.id}', this)" data-tab="${t.id}">
+            <span class="tab-icon">${t.icon}</span> ${t.label}
+          </button>`
+        ).join('');
+
+        const panelHtml = panels.map((p, i) =>
+          `<div class="detail-tab-panel ${i === 0 ? 'active' : ''}" id="panel-${p.id}">${p.content}</div>`
+        ).join('');
+
+        detailHtml = `
+          <div class="detail-tabs">
+            <div class="detail-tab-bar">${tabBar}</div>
+            ${panelHtml}
           </div>`;
+      }
+
+      // Trace link
+      let traceHtml = '';
+      if (event.trace_id) {
+        const traceLink = `${GRAFANA_URL}/explore?left={"datasource":"tempo","queries":[{"refId":"A","queryType":"traceql","query":"${event.trace_id}"}]}`;
+        traceHtml = `<div class="anomaly-trace">
+          <span class="reason-label">Trace:</span>
+          <a href="${traceLink}" target="_blank" rel="noopener" title="View in Grafana Tempo"><code>${event.trace_id}</code> ↗</a>
+        </div>`;
       }
 
       card.innerHTML = `
         <div class="anomaly-card-header">
           <div class="anomaly-meta">
-            <span class="pipe-badge ${event.source}">${event.source === 'log' ? '📄 Log Pipeline' : '📊 Metric Pipeline'}</span>
+            <span class="pipe-badge ${event.source}">${event.source === 'log' ? '📄 Log' : '📊 Metric'}</span>
+            <span class="severity-badge ${severity.level}">${severity.icon} ${severity.label}</span>
             <span class="anomaly-time">${time}</span>
           </div>
-          <span class="mse-badge" title="Model MSE">MSE: ${mse}</span>
+          <div class="anomaly-badges">
+            <span class="mse-badge" title="Model MSE">MSE: ${mse}</span>
+          </div>
         </div>
         <div class="anomaly-reason">
           <span class="reason-label">Trigger:</span>
           <code>${escapeHtml(reason)}</code>
         </div>
-        ${event.log_entry ? `<div class="anomaly-log-entry"><span class="reason-label">Log:</span> <code>${escapeHtml(truncate(event.log_entry, 200))}</code></div>` : ''}
-        ${event.trace_id ? `<div class="anomaly-trace"><span class="reason-label">Trace:</span> <code>${event.trace_id}</code></div>` : ''}
-        ${slmHtml}
+        ${event.log_entry ? `<div class="anomaly-log-summary"><span class="reason-label">Log:</span> <code>${escapeHtml(truncate(event.log_entry, 150))}</code></div>` : ''}
+        ${traceHtml}
+        ${detailHtml}
       `;
 
       feed.insertBefore(card, feed.firstChild);
@@ -310,27 +510,90 @@
       }
     }
 
-    function parseSLMResponse(text) {
-      // Try to split into ROOT CAUSE / IMMEDIATE FIX / VERIFY sections
+    // ── Detail Panel Builders ────────────────────────────────────
+
+    function buildPromptPanel(prompt) {
+      // Highlight the structured sections of the prompt
+      let html = escapeHtml(prompt);
+      // Highlight section headers
+      html = html.replace(/(Anomaly source:.*)/g, '<span class="prompt-section-label">$1</span>');
+      html = html.replace(/(Reason:.*)/g, '<span class="prompt-section-label">$1</span>');
+      html = html.replace(/(Model MSE:.*)/g, '<span class="prompt-section-label">$1</span>');
+      html = html.replace(/(Current Prometheus metrics:)/g, '<span class="prompt-section-label">$1</span>');
+      html = html.replace(/(Log entry:)/g, '<span class="prompt-section-label">$1</span>');
+      html = html.replace(/(Tempo trace digest:)/g, '<span class="prompt-section-label">$1</span>');
+      html = html.replace(/(Respond with exactly.*)/g, '<span class="prompt-section-label">$1</span>');
+      // Highlight metric lines (key: value)
+      html = html.replace(/(  \S+.*?:\s*[\d.]+)/g, '<span class="prompt-metric-line">$1</span>');
+
+      return `<div class="prompt-viewer" id="prompt-${tabIdCounter}">
+        <button class="prompt-copy-btn" onclick="copyPrompt(this)">📋 Copy</button>
+        ${html}
+      </div>`;
+    }
+
+    function buildMetricSnapshotPanel(snapshot) {
+      const items = Object.entries(snapshot).map(([key, val]) => {
+        // Pretty-print the query name
+        const label = key.replace(/^rate\(/, '').replace(/\[.*$/, '').replace(/_total$/, '').replace(/_/g, ' ');
+        const value = typeof val === 'number' ? val.toFixed(4) : String(val);
+        return `<div class="metric-snap-item">
+          <span class="metric-snap-label" title="${escapeHtml(key)}">${escapeHtml(key)}</span>
+          <span class="metric-snap-value">${value}</span>
+        </div>`;
+      }).join('');
+      return `<div class="metric-snapshot-grid">${items}</div>`;
+    }
+
+    function buildLogEntryPanel(logEntry) {
+      let parsed;
+      try {
+        parsed = JSON.parse(logEntry);
+        const pretty = JSON.stringify(parsed, null, 2);
+        return `<div class="log-entry-viewer">${syntaxHighlightJSON(pretty)}</div>`;
+      } catch {
+        return `<div class="log-entry-viewer">${escapeHtml(logEntry)}</div>`;
+      }
+    }
+
+    function buildTraceSummaryPanel(traceSummary) {
+      if (!traceSummary || traceSummary === '(no trace payload)') {
+        return '<div class="no-data-msg">No trace data available for this anomaly.</div>';
+      }
+      const lines = traceSummary.split('\n');
       let html = '';
+      lines.forEach((line, i) => {
+        if (i === 0) {
+          html += `<div class="trace-header-line">${escapeHtml(line)}</div>`;
+        } else if (line.includes('| ERROR')) {
+          html += `<div class="trace-span-error">${escapeHtml(line)}</div>`;
+        } else if (line.includes('| OK')) {
+          html += `<div class="trace-span-ok">${escapeHtml(line)}</div>`;
+        } else {
+          html += `${escapeHtml(line)}\n`;
+        }
+      });
+      return `<div class="trace-summary-viewer">${html}</div>`;
+    }
+
+    function buildSLMResponsePanel(text) {
       const sections = [
         { pattern: /(?:1\.\s*)?ROOT\s*CAUSE[:\s]*/i, icon: '🔍', title: 'Root Cause', cls: 'root-cause' },
         { pattern: /(?:2\.\s*)?IMMEDIATE\s*FIX[:\s]*/i, icon: '🔧', title: 'Immediate Fix', cls: 'fix' },
         { pattern: /(?:3\.\s*)?VERIFY[:\s]*/i, icon: '✅', title: 'Verify', cls: 'verify' },
       ];
 
-      let parts = [];
-      let remaining = text;
       const indices = sections.map(s => {
-        const m = remaining.match(s.pattern);
-        return m ? { ...s, index: remaining.indexOf(m[0]), len: m[0].length } : null;
+        const m = text.match(s.pattern);
+        return m ? { ...s, index: text.indexOf(m[0]), len: m[0].length } : null;
       }).filter(Boolean).sort((a, b) => a.index - b.index);
 
+      let html = '';
       if (indices.length >= 2) {
         for (let i = 0; i < indices.length; i++) {
           const start = indices[i].index + indices[i].len;
-          const end = i + 1 < indices.length ? indices[i + 1].index : remaining.length;
-          const content = remaining.slice(start, end).trim();
+          const end = i + 1 < indices.length ? indices[i + 1].index : text.length;
+          const content = text.slice(start, end).trim();
           html += `<div class="slm-section ${indices[i].cls}">
             <div class="slm-section-title"><span>${indices[i].icon}</span> ${indices[i].title}</div>
             <div class="slm-section-body">${escapeHtml(content)}</div>
@@ -342,37 +605,141 @@
       return html;
     }
 
-    // ── Filter ────────────────────────────────────────────────────
-    function setFilter(f) {
+    // ── JSON Syntax Highlighting ─────────────────────────────────
+    function syntaxHighlightJSON(json) {
+      const escaped = escapeHtml(json);
+      return escaped
+        .replace(/"([^"]+)"(?=\s*:)/g, '<span class="json-key">"$1"</span>')
+        .replace(/:\s*"([^"]*)"/g, ': <span class="json-string">"$1"</span>')
+        .replace(/:\s*(\d+\.?\d*)/g, ': <span class="json-number">$1</span>');
+    }
+
+    // ── Tab Switching ────────────────────────────────────────────
+    window.switchTab = function(tabId, btnEl) {
+      const container = btnEl.closest('.detail-tabs');
+      container.querySelectorAll('.detail-tab-btn').forEach(b => b.classList.remove('active'));
+      container.querySelectorAll('.detail-tab-panel').forEach(p => p.classList.remove('active'));
+      btnEl.classList.add('active');
+      const panel = container.querySelector(`#panel-${tabId}`);
+      if (panel) panel.classList.add('active');
+    };
+
+    // ── Copy Prompt ──────────────────────────────────────────────
+    window.copyPrompt = function(btn) {
+      const viewer = btn.closest('.prompt-viewer');
+      const text = viewer.innerText.replace('📋 Copy', '').trim();
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = '✅ Copied!';
+        setTimeout(() => { btn.textContent = '📋 Copy'; }, 2000);
+      });
+    };
+
+    // ── Filter ───────────────────────────────────────────────────
+    window.setFilter = function(f) {
       currentFilter = f;
       document.querySelectorAll('.filter-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.filter === f);
       });
       document.querySelectorAll('.anomaly-card').forEach(card => {
-        if (f === 'all' || card.dataset.source === f) {
-          card.style.display = '';
-        } else {
-          card.style.display = 'none';
-        }
+        card.style.display = (f === 'all' || card.dataset.source === f) ? '' : 'none';
       });
+    };
+
+    // ── Timeline ─────────────────────────────────────────────────
+    function addTimelineEvent(event) {
+      timelineEvents.push({
+        timestamp: event.timestamp,
+        source: event.source,
+      });
+      // Prune old events
+      const cutoff = Date.now() / 1000 - TIMELINE_WINDOW_S;
+      while (timelineEvents.length > 0 && timelineEvents[0].timestamp < cutoff) {
+        timelineEvents.shift();
+      }
+      drawTimeline();
     }
 
-    // ── Stats polling ─────────────────────────────────────────────
+    function drawTimeline() {
+      const canvas = document.getElementById('timeline-canvas');
+      if (!canvas) return;
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width * 2;
+      canvas.height = rect.height * 2;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const now = Date.now() / 1000;
+      const startT = now - TIMELINE_WINDOW_S;
+      const w = canvas.width;
+      const h = canvas.height;
+
+      // Draw time grid
+      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+      ctx.lineWidth = 1;
+      for (let i = 1; i < 10; i++) {
+        const x = (i / 10) * w;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+
+      // Draw dots
+      timelineEvents.forEach(ev => {
+        const x = ((ev.timestamp - startT) / TIMELINE_WINDOW_S) * w;
+        if (x < 0 || x > w) return;
+        const y = ev.source === 'log' ? h * 0.35 : h * 0.65;
+        const color = ev.source === 'log' ? '#22d3ee' : '#f59e0b';
+
+        // Glow
+        ctx.beginPath();
+        ctx.arc(x, y, 8, 0, Math.PI * 2);
+        ctx.fillStyle = (ev.source === 'log' ? 'rgba(34,211,238,0.15)' : 'rgba(245,158,11,0.15)');
+        ctx.fill();
+
+        // Dot
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+      });
+
+      // Current time marker
+      ctx.strokeStyle = 'rgba(99,102,241,0.4)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(w - 2, 0);
+      ctx.lineTo(w - 2, h);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // ── Stats Polling ────────────────────────────────────────────
     async function pollStats() {
       try {
         const r = await fetch('/api/stats');
         const s = await r.json();
-        document.getElementById('total-anomalies').textContent = s.total_anomalies;
-        document.getElementById('log-anomalies').textContent = s.log_anomalies;
-        document.getElementById('metric-anomalies').textContent = s.metric_anomalies;
-        document.getElementById('slm-calls').textContent = s.slm_calls;
+        animateValue('total-anomalies', s.total_anomalies);
+        animateValue('log-anomalies', s.log_anomalies);
+        animateValue('metric-anomalies', s.metric_anomalies);
+        animateValue('slm-calls', s.slm_calls);
         const mins = Math.floor(s.uptime_s / 60);
         const secs = Math.floor(s.uptime_s % 60);
         document.getElementById('uptime-badge').textContent = `${mins}m ${secs}s`;
       } catch {}
     }
 
-    // ── Prometheus metrics polling ────────────────────────────────
+    function animateValue(elementId, newVal) {
+      const el = document.getElementById(elementId);
+      const current = parseInt(el.textContent) || 0;
+      if (current === newVal) return;
+      el.textContent = newVal;
+      el.classList.add('bump');
+      setTimeout(() => el.classList.remove('bump'), 200);
+    }
+
+    // ── Prometheus Metrics Polling ───────────────────────────────
     const promQueries = {
       rps:    'rate(http_requests_total[1m])',
       errors: 'rate(http_errors_total[1m])',
@@ -415,7 +782,7 @@
       } catch {}
     }
 
-    // ── Sparkline renderer ────────────────────────────────────────
+    // ── Sparkline Renderer ───────────────────────────────────────
     function drawSparkline(canvasId, data, color) {
       const canvas = document.getElementById(canvasId);
       if (!canvas || data.length < 2) return;
@@ -439,58 +806,88 @@
       ctx.stroke();
 
       // Fill area
-      const lastX = w, lastY = h - ((data[data.length - 1] - min) / range) * (h - 4) - 2;
-      ctx.lineTo(lastX, h);
+      ctx.lineTo(w, h);
       ctx.lineTo(0, h);
       ctx.closePath();
       ctx.fillStyle = color + '15';
       ctx.fill();
     }
 
-    // ── Architecture pulse animation ──────────────────────────────
+    // ── Architecture Pulse Animation ─────────────────────────────
     function pulseArch(source) {
-      const id = source === 'log' ? 'arch-log-pipe' : 'arch-metric-pipe';
-      const el = document.getElementById(id);
-      if (el) {
-        el.classList.add('pulse');
-        setTimeout(() => el.classList.remove('pulse'), 1500);
+      const pipeId = source === 'log' ? 'arch-log-pipe' : 'arch-metric-pipe';
+      const pipeEl = document.getElementById(pipeId);
+      const flashClass = source === 'log' ? 'pulse-log' : 'pulse-metric';
+      if (pipeEl) {
+        pipeEl.classList.add('pulse', flashClass);
+        setTimeout(() => pipeEl.classList.remove('pulse', flashClass), 2000);
       }
-      document.getElementById('logo-pulse').classList.add('pulse');
-      setTimeout(() => document.getElementById('logo-pulse').classList.remove('pulse'), 1000);
+      // Pulse the handler and SLM nodes too
+      ['node-handler', 'node-slm', 'node-dashboard'].forEach((nid, i) => {
+        const el = document.getElementById(nid);
+        if (el) {
+          setTimeout(() => {
+            el.style.filter = 'drop-shadow(0 0 10px rgba(99,102,241,0.4))';
+            setTimeout(() => { el.style.filter = ''; }, 1200);
+          }, 300 * (i + 1));
+        }
+      });
+      // Header logo pulse
+      const logo = document.getElementById('logo-pulse');
+      if (logo) {
+        logo.classList.add('pulse');
+        setTimeout(() => logo.classList.remove('pulse'), 1000);
+      }
     }
 
-    // ── Section toggle ────────────────────────────────────────────
-    function toggleSection(id) {
-      const el = document.getElementById(id);
-      el.classList.toggle('collapsed');
-    }
+    // ── Section Toggle ───────────────────────────────────────────
+    window.toggleSection = function(id) {
+      document.getElementById(id).classList.toggle('collapsed');
+    };
 
-    // ── Helpers ───────────────────────────────────────────────────
+    // ── Helpers ──────────────────────────────────────────────────
     function escapeHtml(s) {
       if (!s) return '';
-      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
     function truncate(s, n) {
       if (!s) return '';
       return s.length > n ? s.slice(0, n) + '…' : s;
     }
 
-    // ── Load history on startup ───────────────────────────────────
+    // ── Load History on Startup ──────────────────────────────────
     async function loadHistory() {
       try {
         const r = await fetch('/api/anomalies/history');
         const items = await r.json();
-        items.forEach(item => addAnomalyCard(item));
+        items.forEach(item => {
+          addAnomalyCard(item);
+          addTimelineEvent(item);
+        });
       } catch {}
     }
 
-    // ── Init ──────────────────────────────────────────────────────
+    // ── Resize timeline canvas ───────────────────────────────────
+    function resizeTimeline() {
+      drawTimeline();
+    }
+    window.addEventListener('resize', resizeTimeline);
+
+    // ── Init ─────────────────────────────────────────────────────
     connectSSE();
     loadHistory();
     pollStats();
     pollMetrics();
     setInterval(pollStats, 5000);
     setInterval(pollMetrics, 15000);
+    setInterval(drawTimeline, 10000); // Redraw timeline periodically
+
+    // Initial timeline draw after a tick (canvas needs to be laid out)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(drawTimeline);
+    });
+
+  })();
   </script>
 </body>
 </html>
