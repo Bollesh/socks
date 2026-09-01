@@ -21,6 +21,7 @@ LOKI_URL       = "http://localhost:3100"
 POLL_INTERVAL  = 2   # seconds
 TEMPO_URL             = "http://localhost:3200"
 ANOMALY_DURATION_MS   = 1000   # traces slower than this are flagged as real
+VALIDATION_WINDOW_S   = 3      # +/- seconds around the log line to search Tempo
 # All your services in one regex query
 # =~ means "regex match" in LogQL
 # The | between names means OR
@@ -130,75 +131,92 @@ def process_line(service, line, client, timestamp_ns):
     print(f"        template : {template}")
 
     # Validate against Tempo before flagging as real anomaly
-    validation = validate_with_tempo(client, timestamp_ns)
+    validation = validate_with_tempo(client, service, timestamp_ns)
     if validation["valid"]:
         print(f"        ✓ CONFIRMED by Tempo: {validation['reason']}")
         print(f"        → Send to remediation")
     else:
         print(f"        ✗ SUPPRESSED: {validation['reason']}")
     print()
-def validate_with_tempo(client, timestamp_ns: str) -> dict:
+def _search(client, query, start_s, end_s, limit=20):
     """
-    When Drain3 flags a novel pattern at timestamp T,
-    query Tempo for traces within a 3-second window around T.
-    
+    One Tempo search. Tempo has no `service.name` query parameter — you filter
+    either with `tags=` (logfmt) or, as here, with `q=` (a TraceQL query).
+    Raises on transport/HTTP failure; the caller decides what that means.
+    """
+    response = client.get(
+        f"{TEMPO_URL}/api/search",
+        params={
+            "q":     query,
+            "start": start_s,   # Tempo wants plain unix seconds
+            "end":   end_s,
+            "limit": limit,
+        },
+        timeout=5.0,
+    )
+    response.raise_for_status()
+    return response.json().get("traces", [])
+
+
+def validate_with_tempo(client, service: str, timestamp_ns: str) -> dict:
+    """
+    When Drain3 flags a novel pattern in `service` at timestamp T,
+    ask Tempo whether anything actually went wrong in that service
+    within a 3-second window around T.
+
     Returns:
-        {"valid": True,  "reason": "found slow trace 1240ms"}  → real anomaly
-        {"valid": False, "reason": "all traces normal"}        → suppress it
+        {"valid": True,  "reason": "slow trace found: 1240ms"}  → real anomaly
+        {"valid": False, "reason": "all traces normal in window"} → suppress it
     """
     # Convert nanoseconds to seconds for Tempo
     ts_seconds = int(timestamp_ns) / 1e9
-    start_s = int(ts_seconds - 3)    # Tempo wants plain seconds
-    end_s   = int(ts_seconds + 3)
+    start_s = int(ts_seconds - VALIDATION_WINDOW_S)
+    end_s   = int(ts_seconds + VALIDATION_WINDOW_S)
+
+    # Let Tempo do the filtering: one query that matches only traces which are
+    # slow, errored, or carry an HTTP 5xx. Doing it server-side also means the
+    # matched attributes come back in the response, which a bare tag search
+    # would not give us.
+    service_filter = f'resource.service.name = "{service}"'
+    anomaly_query = (
+        "{ " + service_filter + " && ("
+        f"trace:duration > {ANOMALY_DURATION_MS}ms"
+        " || status = error"
+        " || span.http.status_code >= 500) }"
+    )
 
     try:
-        response = client.get(
-            f"{TEMPO_URL}/api/search",
-            params={
-                "service.name": "locust",
-                "start":        start_s,
-                "end":          end_s,
-                "limit":        20,
-            },
-            timeout=5.0,
-        )
-        response.raise_for_status()
-        traces = response.json().get("traces", [])
+        traces = _search(client, anomaly_query, start_s, end_s)
     except Exception as e:
         # If Tempo is unreachable, let the anomaly through
         return {"valid": True, "reason": f"Tempo unavailable: {e}"}
 
-    if not traces:
-        return {"valid": False, "reason": "no traces found in window"}
-
-    for t in traces:
-        duration_ms = t.get("durationMs", 0)
-        root_error  = t.get("rootServiceName", "")
-        
-        # Check for slow traces
+    if traces:
+        trace = traces[0]
+        duration_ms = trace.get("durationMs", 0)
         if duration_ms > ANOMALY_DURATION_MS:
-            return {
-                "valid":    True,
-                "reason":   f"slow trace found: {duration_ms}ms",
-                "trace_id": t.get("traceID", ""),
-            }
-        
-        # Check for error traces
-        span_set = t.get("spanSet", {})
-        spans    = span_set.get("spans", []) if span_set else []
-        for span in spans:
-            attrs = span.get("attributes", [])
-            for attr in attrs:
-                if attr.get("key") == "http.status_code":
-                    val = attr.get("value", {}).get("intValue", 0)
-                    if int(val) >= 500:
-                        return {
-                            "valid":    True,
-                            "reason":   f"error span found: HTTP {val}",
-                            "trace_id": t.get("traceID", ""),
-                        }
+            reason = f"slow trace found: {duration_ms}ms"
+        else:
+            reason = "error span found in trace"
+        return {
+            "valid":    True,
+            "reason":   reason,
+            "trace_id": trace.get("traceID", ""),
+        }
+
+    # Nothing anomalous matched. Was there any traffic at all for this service?
+    # "no traces" and "traces, all healthy" are different stories.
+    try:
+        any_traces = _search(client, "{ " + service_filter + " }", start_s, end_s, limit=1)
+    except Exception as e:
+        return {"valid": True, "reason": f"Tempo unavailable: {e}"}
+
+    if not any_traces:
+        return {"valid": False, "reason": f"no {service} traces found in window"}
 
     return {"valid": False, "reason": "all traces normal in window"}
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MAIN LOOP
 # ─────────────────────────────────────────────────────────────────────────────
